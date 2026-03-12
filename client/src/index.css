@@ -1,56 +1,62 @@
 @import "tailwindcss";
 
+/* ─── Slide In ─────────────────────────────────────────────── */
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 .animate-slideIn {
   animation: slideIn 0.6s ease-out forwards;
 }
 
+/* ─── Digit Flip ────────────────────────────────────────────── */
 @keyframes digitUp {
-  0% { transform: translateY(0); opacity: 1; }
-  40% { transform: translateY(-12px); opacity: 0; }
-  60% { transform: translateY(10px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
+  0%   { transform: translateY(0);    opacity: 1; }
+  40%  { transform: translateY(-12px); opacity: 0; }
+  60%  { transform: translateY(10px);  opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
 }
-
 .digit-flip {
   display: inline-block;
   transition: all 0.4s ease;
+  /* Safari: force GPU layer for smoother animation */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform, opacity;
 }
-
 .digit-flip.animating {
-  animation: digitUp 0.5s cubic-bezier(.4,0,.2,1) forwards;
+  animation: digitUp 0.5s cubic-bezier(.4, 0, .2, 1) forwards;
 }
 
+/* ─── Panic Animations ──────────────────────────────────────── */
 @keyframes panicPulse {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.15); }
-  100% { transform: scale(1); }
+  0%   { transform: scale(1);    }
+  40%  { transform: scale(1.15); }
+  100% { transform: scale(1);    }
 }
-
 @keyframes panicShake {
-  0% { transform: translateX(0); }
-  25% { transform: translateX(-1px); }
-  50% { transform: translateX(1px); }
-  75% { transform: translateX(-1px); }
-  100% { transform: translateX(0); }
+  0%   { transform: translateX(0);   }
+  25%  { transform: translateX(-1px);}
+  50%  { transform: translateX(1px); }
+  75%  { transform: translateX(-1px);}
+  100% { transform: translateX(0);   }
 }
-
 .digit-panic {
   animation:
     panicPulse 0.8s ease-in-out infinite,
     panicShake 0.25s linear infinite;
+  /* Prevent jitter on Safari/Firefox */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
 }
 
+/* ─── Soft Gradient Background ──────────────────────────────── */
 @keyframes gradientFlowSoft {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
 }
-
 .soft-gradient-bg {
   background: linear-gradient(
     105deg,
@@ -60,9 +66,24 @@
     #2e1065 94%,
     #3b0764 100%
   );
-
   background-size: 200% 200%;
   animation: gradientFlowSoft 15s ease infinite;
 
-  padding: 48px 40px 36px;
+  /* Responsive padding: smaller on mobile, original on desktop */
+  padding: clamp(24px, 5vw, 48px) clamp(16px, 4vw, 40px) clamp(20px, 4vw, 36px);
+}
+
+/* ─── Reduced Motion (Accessibility) ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slideIn,
+  .digit-flip.animating,
+  .digit-panic,
+  .soft-gradient-bg {
+    animation: none;
+    transition: none;
+  }
+
+  .digit-flip {
+    transition: none;
+  }
 }
