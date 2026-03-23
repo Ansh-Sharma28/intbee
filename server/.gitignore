@@ -1,0 +1,85 @@
+# =========================
+# Secrets
+# =========================
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+
+# =========================
+# Node / React
+# =========================
+node_modules/
+**/node_modules/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+build/
+dist/
+.next/
+out/
+coverage/
+
+# Vite / React
+.vite/
+.cache/
+
+# =========================
+# Backend logs / temp
+# =========================
+logs/
+*.log
+tmp/
+temp/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc.*
+*.sqlite3
+*.db
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+sympy-service/venv/
+
+# Python caches
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Editors
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Generated data (optional)
+# =========================
+generated/
+datasets/
+exports/
+
+# =========================
+# Railway / deployment
+# =========================
+*.pid
