@@ -3,6 +3,7 @@ import Home from "./pages/Home";
 import CountdownMode from "./pages/CountdownMode";
 import VsMode from "./pages/VsMode";
 import RapidFireTest from "./pages/RapidFireTest";
+import RapidResultPage from "./pages/RapidResultPage";
 
 function App() {
   return (
@@ -12,7 +13,8 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/countdown" element={<CountdownMode />} />
           <Route path="/vs" element={<VsMode />} />
-          <Route path="/rapid" element={<RapidFireTest />} />
+          <Route path="/rapid/:difficulty" element={<RapidFireTest />} />
+          <Route path="/rapidresults" element={<RapidResultPage />} />
         </Routes>
       </div>
     </Router>

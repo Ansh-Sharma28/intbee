@@ -14,7 +14,11 @@ const QuestionSchema = new mongoose.Schema(
       required: true,
       trim: true,
       index: true,
-      set: (v) => v.replace(/\s+/g, "")
+      set: (v) =>
+        v
+          .replace(/\s+/g, "")
+          .replace(/\\left|\\right/g, "")
+          .replace(/\\,/g, "")
     },
 
     options: {
@@ -31,7 +35,13 @@ const QuestionSchema = new mongoose.Schema(
     correctAnswer: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      validate: {
+        validator: function (value) {
+          return this.options.includes(value);
+        },
+        message: "correctAnswer must be one of the options"
+      }
     },
 
     verified: {
@@ -52,7 +62,7 @@ QuestionSchema.index({ difficulty: 1, createdAt: 1 });
 QuestionSchema.index({ difficulty: 1, verified: 1 });
 
 /*
-Prevent duplicate integrands for same difficulty
+Prevent duplicate integrands
 */
 QuestionSchema.index(
   { difficulty: 1, integrand: 1 },

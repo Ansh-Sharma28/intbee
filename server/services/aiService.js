@@ -3,66 +3,141 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const DIFFICULTY_GUIDELINES = {
-  Easy:
-    "Strong undergraduate level. Single deep idea required. Sources: non-obvious substitution, trig manipulation beyond basic identities, disguised inverse trig/log forms, rational functions needing structure recognition, algebraic–trig mixtures, symmetry observation.",
+/*
+Contest-style difficulty tiers
+Compact but strong enough to guide the model
+*/
+const DIFFICULTY_RULES = {
+  Easy: `
+Contest warm-up integrals.
 
-  Medium:
-    "Advanced undergraduate / strong contest level. Multi-step reasoning required. Sources: integration by parts chains, partial fractions with non-trivial decomposition, trig powers/products transformations, completing square leading to inverse trig/log, parameterized expressions, structural transformations, mixed exponential–trig behavior.",
+Requirements:
+- Not trivial power rule
+- Small substitution or identity required
+- Light algebra or trig manipulation
+- May involve e^ax, sin(ax), rational expressions
+`,
 
-  Hard:
-    "Elite competition level (Putnam / Olympiad style insight). Non-obvious transformation required. Sources: Weierstrass substitution, reduction formulas, recursive integrals, differentiation under the integral sign, improper integrals with convergence analysis, symmetry transformations, hidden constants (pi, ln2, Catalan-type), composite structures combining trig, exponential, and algebraic behavior."
+  Medium: `
+Competition-level integrals.
+
+Use combinations of:
+- integration by parts
+- trig identities
+- rational decomposition
+- completing the square
+- clever substitution
+`,
+
+  Hard: `
+Advanced contest integrals.
+
+Prefer:
+- elegant substitutions
+- non-obvious simplifications
+- symmetry tricks
+- recursive integration by parts
+- challenging rational structures
+`,
 };
 
-const SYSTEM_PROMPT =
-  "You are a competition mathematician specializing in integration. Output ONLY a valid raw JSON array. No markdown, no explanation, no preamble.";
+const SYSTEM_PROMPT = `
+You create high-quality calculus competition questions.
+
+Output ONLY a raw JSON array.
+
+Each object:
+{
+  "integrand": "LaTeX integral",
+  "options": ["A", "B", "C", "D"],
+  "correctAnswer": "must exactly match one option"
+}
+
+Rules:
+- Integrals must be interesting and non-trivial
+- Avoid basic textbook problems
+- Avoid repeating the same integral pattern in the batch
+- Exactly 4 options
+- Every option ends with + C
+- Options must be plausible mistakes
+`;
 
 function isRateLimitError(error) {
   const msg = error?.message || "";
   return (
     msg.includes("429") ||
     msg.toLowerCase().includes("rate") ||
-    msg.toLowerCase().includes("limit") ||
-    msg.includes("RESOURCE_EXHAUSTED")
+    msg.toLowerCase().includes("limit")
   );
 }
 
-function getSkeleton(expr) {
-  return expr
-    .replace(/[0-9]/g, "n")
-    .replace(/\s+/g, "")
-    .replace(/n+n/g, "n")
-    .replace(/--/g, "-");
+function safelyParseJSON(raw) {
+  const cleaned = raw
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  const start = cleaned.indexOf("[");
+  if (start === -1) return [];
+
+  let json = cleaned.slice(start);
+
+  while (json.length > 10) {
+    try {
+      return JSON.parse(json);
+    } catch {
+      const last = json.lastIndexOf("},");
+      if (last === -1) break;
+      json = json.slice(0, last + 1) + "]";
+    }
+  }
+
+  return [];
+}
+
+function buildPrompt(difficulty, amount) {
+  return `
+Generate ${amount} ${difficulty} integration MCQs.
+
+Difficulty:
+${DIFFICULTY_RULES[difficulty]}
+
+Strict rules:
+1. integrand must contain \\int ... dx
+2. options must contain exactly 4 answers
+3. correctAnswer must match one option exactly
+4. every option must end with + C
+5. avoid trivial integrals like ∫x dx or ∫sin(x) dx
+
+Return raw JSON only.
+`;
+}
+
+function isStructurallyValid(q) {
+  if (!q) return false;
+
+  if (typeof q.integrand !== "string") return false;
+  if (!q.integrand.includes("\\int")) return false;
+
+  if (!Array.isArray(q.options)) return false;
+  if (q.options.length !== 4) return false;
+  if (q.options.some((o) => typeof o !== "string")) return false;
+
+  if (typeof q.correctAnswer !== "string") return false;
+  if (!q.options.includes(q.correctAnswer)) return false;
+
+  if (!/\+\s*C\s*$/.test(q.correctAnswer)) return false;
+
+  if (q.options.some((o) => o.includes("\\int"))) return false;
+
+  return true;
 }
 
 async function generateQuestionsBatch(difficulty, amount = 20) {
-  const prompt = `Generate exactly ${amount} UNIQUE calculus integration MCQs.
-
-Difficulty: ${difficulty} — ${DIFFICULTY_GUIDELINES[difficulty]}
-
-Strict rules:
-- Each integrand must have a DISTINCT structural form
-- Avoid textbook templates and predictable patterns
-- Prefer surprising substitutions, hidden symmetry, or structural transformations
-- Randomize combinations of algebraic, trig, logarithmic, and exponential components
-- Include unusual integrand constructions when possible
-- Do not repeat integrand patterns
-- Difficulty must reflect advanced mathematics students
-
-Notation:
-Use only: x^2, sin(x), cos(x), tan(x), ln(x), sqrt(x), e^(x), arctan(x)
-
-MCQ format:
-- Exactly 4 options
-- Distractors must be mathematically believable
-- correctAnswer must exactly match one option
-- correctAnswer must end with "+ C"
-
-Fields only:
-"integrand", "options", "correctAnswer"
-
-Return ONLY a raw JSON array.`;
-
   let attempts = 0;
 
   while (attempts < 3) {
@@ -71,69 +146,40 @@ Return ONLY a raw JSON array.`;
         model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: prompt },
+          { role: "user", content: buildPrompt(difficulty, amount) },
         ],
-        temperature: difficulty === "Hard" ? 0.98 : 0.9,
-        max_tokens: 3000,
+        temperature:
+          difficulty === "Hard"
+            ? 0.95
+            : difficulty === "Medium"
+            ? 0.85
+            : 0.8,
+        max_tokens: 3500,
       });
 
       const raw = response.choices?.[0]?.message?.content || "[]";
-      const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
-      const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) throw new Error("No JSON array found");
 
-      let jsonString = jsonMatch[0];
-      const lastComplete = jsonString.lastIndexOf("}");
-      if (lastComplete !== -1) jsonString = jsonString.slice(0, lastComplete + 1);
-      if (!jsonString.trim().endsWith("]")) jsonString += "]";
+      console.log("===== GROQ RAW RESPONSE =====");
+      console.log(raw);
 
-      const parsed = JSON.parse(jsonString);
+      const parsed = safelyParseJSON(raw);
+      const valid = parsed.filter(isStructurallyValid);
 
-      const valid = parsed.filter(
-        (q) =>
-          typeof q.integrand === "string" &&
-          Array.isArray(q.options) &&
-          q.options.length === 4 &&
-          q.options.every((o) => typeof o === "string") &&
-          typeof q.correctAnswer === "string" &&
-          q.options.includes(q.correctAnswer)
-      );
+      console.log(`Valid after parsing: ${valid.length}/${parsed.length}`);
 
-      if (valid.length < amount * 0.7)
-        throw new Error(`Validation failed (${valid.length}/${amount})`);
-
-      const usedSkeletons = new Set();
-      const diverse = [];
-
-      for (const q of valid.sort(() => Math.random() - 0.5)) {
-        const skeleton = getSkeleton(q.integrand);
-        if (usedSkeletons.has(skeleton)) continue;
-        usedSkeletons.add(skeleton);
-        diverse.push({
-          ...q,
-          options: q.options.sort(() => Math.random() - 0.5),
-          difficulty,
-        });
-        if (diverse.length === amount) break;
-      }
-
-      if (diverse.length < amount * 0.6)
-        throw new Error("Low diversity batch");
-
-      return diverse;
-
+      return valid;
     } catch (error) {
       if (isRateLimitError(error)) {
-        console.error("Groq rate limit reached.");
         throw new Error("AI_RATE_LIMIT_REACHED");
       }
 
       attempts++;
-      console.log(`Groq attempt ${attempts} failed:`, error.message);
-      if (attempts >= 3) throw new Error("AI_GENERATION_FAILED");
-      await sleep(2000 * attempts);
+      console.log(`Groq retry ${attempts}`);
+      await sleep(1500 * attempts);
     }
   }
+
+  return [];
 }
 
 module.exports = { generateQuestionsBatch };

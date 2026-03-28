@@ -2,20 +2,44 @@
 
 /* ─── Slide In ─────────────────────────────────────────────── */
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
+
 .animate-slideIn {
   animation: slideIn 0.6s ease-out forwards;
 }
 
 /* ─── Digit Flip ────────────────────────────────────────────── */
 @keyframes digitUp {
-  0%   { transform: translateY(0);    opacity: 1; }
-  40%  { transform: translateY(-12px); opacity: 0; }
-  60%  { transform: translateY(10px);  opacity: 0; }
-  100% { transform: translateY(0);    opacity: 1; }
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  40% {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+
+  60% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
+
 .digit-flip {
   display: inline-block;
   transition: all 0.4s ease;
@@ -24,23 +48,48 @@
   transform: translateZ(0);
   will-change: transform, opacity;
 }
+
 .digit-flip.animating {
   animation: digitUp 0.5s cubic-bezier(.4, 0, .2, 1) forwards;
 }
 
 /* ─── Panic Animations ──────────────────────────────────────── */
 @keyframes panicPulse {
-  0%   { transform: scale(1);    }
-  40%  { transform: scale(1.15); }
-  100% { transform: scale(1);    }
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.15);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
+
 @keyframes panicShake {
-  0%   { transform: translateX(0);   }
-  25%  { transform: translateX(-1px);}
-  50%  { transform: translateX(1px); }
-  75%  { transform: translateX(-1px);}
-  100% { transform: translateX(0);   }
+  0% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-1px);
+  }
+
+  50% {
+    transform: translateX(1px);
+  }
+
+  75% {
+    transform: translateX(-1px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
 }
+
 .digit-panic {
   animation:
     panicPulse 0.8s ease-in-out infinite,
@@ -53,19 +102,26 @@
 
 /* ─── Soft Gradient Background ──────────────────────────────── */
 @keyframes gradientFlowSoft {
-  0%   { background-position: 0%   50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0%   50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
+
 .soft-gradient-bg {
-  background: linear-gradient(
-    105deg,
-    #020617 0%,
-    #020617 60%,
-    #1e1b4b 82%,
-    #2e1065 94%,
-    #3b0764 100%
-  );
+  background: linear-gradient(105deg,
+      #020617 0%,
+      #020617 60%,
+      #1e1b4b 82%,
+      #2e1065 94%,
+      #3b0764 100%);
   background-size: 200% 200%;
   animation: gradientFlowSoft 15s ease infinite;
 
@@ -75,6 +131,7 @@
 
 /* ─── Reduced Motion (Accessibility) ───────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+
   .animate-slideIn,
   .digit-flip.animating,
   .digit-panic,
@@ -86,4 +143,53 @@
   .digit-flip {
     transition: none;
   }
+}
+
+@theme {
+  --color-emerald-glow: #10b981;
+  --color-purple-glow: #8b5cf6;
+  --color-red-glow: #ef4444;
+}
+
+/* ─── Color Map: Labels ─────────────────────────────────────── */
+.cm-emerald-label {
+  @apply text-emerald-400;
+}
+
+.cm-purple-label {
+  @apply text-purple-400;
+}
+
+.cm-red-label {
+  @apply text-red-400;
+}
+
+/* ─── Color Map: Badges ─────────────────────────────────────── */
+.cm-emerald-badge {
+  @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/20;
+}
+
+.cm-purple-badge {
+  @apply bg-purple-500/10 text-purple-400 border border-purple-500/20;
+}
+
+.cm-red-badge {
+  @apply bg-red-500/10 text-red-400 border border-red-500/20;
+}
+
+.cm-slate-badge {
+  @apply bg-slate-700/40 text-slate-300 border border-slate-600/30;
+}
+
+/* ─── Color Map: Buttons ────────────────────────────────────── */
+.cm-emerald-button {
+  @apply bg-gradient-to-r from-emerald-700 to-emerald-500;
+}
+
+.cm-purple-button {
+  @apply bg-gradient-to-r from-purple-700 to-purple-500;
+}
+
+.cm-red-button {
+  @apply bg-gradient-to-r from-red-700 to-red-500;
 }

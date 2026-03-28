@@ -4,42 +4,74 @@ const { verifyBatch } = require("./sympyService");
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
+function normalizeLatex(expr) {
+  if (!expr) return "";
+  return expr
+    .replace(/\s+/g, "")
+    .replace(/\\left|\\right/g, "")
+    .replace(/\\,/g, "")
+    .replace(/\+C/g, "")
+    .replace(/\^\{([^}]*)\}/g, "^$1")
+    .trim();
+}
+
+/* NEW — fixes bad LaTeX produced by AI */
+function fixIntegralLatex(expr) {
+  if (!expr) return expr;
+
+  return expr
+    // integral spacing
+    .replace(/\\intx/g, "\\int x")
+    .replace(/\\int([a-zA-Z])/g, "\\int $1")
+
+    // trig spacing
+    .replace(/\\sinx/g, "\\sin x")
+    .replace(/\\cosx/g, "\\cos x")
+    .replace(/\\tanx/g, "\\tan x")
+
+    // inverse trig fixes
+    .replace(/arctanx/g, "\\arctan(x)")
+    .replace(/arctan\(/g, "\\arctan(")
+    .replace(/arc\s*tan/g, "\\arctan")
+
+    // log / ln fixes
+    .replace(/\\lnx/g, "\\ln x")
+
+    // ensure dx spacing
+    .replace(/dx$/g, " dx")
+    .replace(/dy$/g, " dy")
+    .replace(/dz$/g, " dz");
+}
+
 async function generateBatch(difficulty, targetAmount = 20) {
   let collected = [];
-  const seenIntegrands = new Set();
-  let safetyCounter = 0;
+  let attempts = 0;
 
   while (collected.length < targetAmount) {
-    safetyCounter++;
-    if (safetyCounter > 25) {
-      throw new Error("GENERATION_STUCK");
-    }
+    attempts++;
+    console.log(`Progress: ${collected.length}/${targetAmount}`);
 
-    const remaining = targetAmount - collected.length;
-    console.log(`Generating questions. Stored: ${collected.length}/${targetAmount}`);
+    if (attempts > 40) throw new Error("GENERATION_STUCK");
 
     try {
-      const requestAmount = Math.min(20, remaining + 5);
-      const aiQuestions = await generateQuestionsBatch(difficulty, requestAmount);
+      const needed = targetAmount - collected.length;
 
-      if (!aiQuestions || aiQuestions.length === 0) {
-        console.log("AI returned empty batch");
-        continue;
-      }
+      const aiQuestions = await generateQuestionsBatch(
+        difficulty,
+        Math.min(needed * 2, 20)
+      );
 
-      // Step 1: remove duplicates inside AI batch + current round
-      const uniqueAI = aiQuestions.filter((q) => {
-        const key = q.integrand.replace(/\s+/g, "");
-        if (seenIntegrands.has(key)) return false;
-        seenIntegrands.add(key);
-        return true;
+      if (!aiQuestions.length) continue;
+
+      console.log(`AI returned: ${aiQuestions.length}`);
+
+      /* FIX AI LATEX HERE */
+      aiQuestions.forEach((q) => {
+        q.integrand = fixIntegralLatex(q.integrand);
       });
 
-      if (uniqueAI.length === 0) continue;
-
-      // Step 2: remove integrands already in Mongo
-      const integrands = uniqueAI.map((q) =>
-        q.integrand.replace(/\s+/g, "")
+      const integrands = aiQuestions.map((q) =>
+        normalizeLatex(q.integrand)
       );
 
       const existing = await Question.find(
@@ -48,73 +80,63 @@ async function generateBatch(difficulty, targetAmount = 20) {
       ).lean();
 
       const existingSet = new Set(
-        existing.map((q) => q.integrand.replace(/\s+/g, ""))
+        existing.map((q) => normalizeLatex(q.integrand))
       );
 
-      const newQuestions = uniqueAI.filter(
-        (q) => !existingSet.has(q.integrand.replace(/\s+/g, ""))
+      const newQuestions = aiQuestions.filter(
+        (q) => !existingSet.has(normalizeLatex(q.integrand))
       );
 
-      if (newQuestions.length === 0) continue;
+      if (!newQuestions.length) {
+        console.log("All already in DB, retrying...");
+        continue;
+      }
 
-      // Step 3: verify with SymPy
-      const verifyIntegrands = newQuestions.map(q => q.integrand);
-      const verifyAnswers = newQuestions.map(q => q.correctAnswer);
+      console.log(`New questions: ${newQuestions.length}`);
 
-      const verificationResults = await verifyBatch(
-        verifyIntegrands,
-        verifyAnswers
+      const verifyResults = await verifyBatch(
+        newQuestions.map((q) => q.integrand),
+        newQuestions.map((q) => q.correctAnswer)
       );
 
-      const validDocs = [];
+      const passCount = verifyResults.filter(Boolean).length;
+      console.log(`SymPy verified: ${passCount}/${newQuestions.length}`);
 
       for (let i = 0; i < newQuestions.length; i++) {
-        if (
-          verificationResults &&
-          verificationResults[i] &&
-          collected.length + validDocs.length < targetAmount
-        ) {
-          const q = newQuestions[i];
+        if (!verifyResults[i]) continue;
 
-          validDocs.push({
+        try {
+          const doc = await Question.create({
             difficulty,
-            integrand: q.integrand,
-            options: q.options,
-            correctAnswer: q.correctAnswer,
+            integrand: newQuestions[i].integrand,
+            options: newQuestions[i].options,
+            correctAnswer: newQuestions[i].correctAnswer,
             verified: true,
           });
-        }
-      }
 
-      // Step 4: insert safely
-      for (const doc of validDocs) {
-        try {
-          await Question.create(doc);
           collected.push(doc);
+
+          if (collected.length >= targetAmount) break;
         } catch (err) {
-          if (err.code === 11000) {
-            console.log(`Skipped duplicate integrand: ${doc.integrand}`);
-          } else {
-            throw err;
-          }
+          if (err.code !== 11000) throw err;
         }
       }
-
-      console.log(`Stored so far: ${collected.length}`);
-
     } catch (err) {
-      // IMPORTANT: stop immediately if AI limit reached
-      if (err.message === "AI_RATE_LIMIT_REACHED") {
-        console.error("AI limit reached. Stopping batch generation.");
-        throw err;
-      }
+      if (err.message === "AI_RATE_LIMIT_REACHED") throw err;
 
-      console.error("Batch generation error:", err.message);
-      await sleep(2000);
+      console.log("Retrying batch:", err.message);
+      await sleep(1500);
     }
   }
 
-  return collected.slice(0, targetAmount);
+  return collected;
+}
+
+async function fetchAllQuestions(difficulty) {
+  return await Question.aggregate([
+    { $match: { verified: true, difficulty } },
+    { $sample: { size: 50 } },
+  ]);
 }
 
 async function getNextQuestion(difficulty) {
@@ -124,12 +146,8 @@ async function getNextQuestion(difficulty) {
   );
 
   if (!question) {
-    console.log("Question cache empty. Generating batch...");
-    const batch = await generateBatch(difficulty, 20);
-
-    if (!batch || batch.length === 0) {
-      throw new Error("FAILED_TO_GENERATE_QUESTIONS");
-    }
+    console.log("Cache empty → generating...");
+    await generateBatch(difficulty, 20);
 
     question = await Question.findOneAndDelete(
       { difficulty },
@@ -148,4 +166,5 @@ module.exports = {
   generateBatch,
   getNextQuestion,
   deleteRound,
+  fetchAllQuestions,
 };

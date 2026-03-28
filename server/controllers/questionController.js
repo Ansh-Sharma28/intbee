@@ -2,6 +2,27 @@ const service = require("../services/questionService");
 
 const VALID_DIFFICULTIES = ["Easy", "Medium", "Hard"];
 
+exports.getAllQuestions = async (req, res) => {
+  try {
+    const { difficulty } = req.params;
+
+    if (!VALID_DIFFICULTIES.includes(difficulty)) {
+      return res.status(400).json({ message: "Invalid difficulty." });
+    }
+
+    const questions = await service.fetchAllQuestions(difficulty);
+
+    if (!questions || questions.length === 0) {
+      return res.status(404).json({ message: "No questions available." });
+    }
+
+    res.json(questions);
+
+  } catch (error) {
+    console.error("Error fetching questions:", error);
+    res.status(500).json({ message: "Failed to fetch questions." });
+  }
+};
 /**
  * Get the next available verified question
  */

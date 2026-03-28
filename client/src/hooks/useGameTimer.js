@@ -1,34 +1,50 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-export default function useGameTimer(initialTime) {
-
-  const [time, setTime] = useState(initialTime);
+export default function useGameTimer(maxTime, running) {
+  const [time, setTime] = useState(maxTime);
   const [animating, setAnimating] = useState(false);
+  const intervalRef = useRef(null);
 
   useEffect(() => {
+    if (!running) return;
 
-    if (time <= 0) return;
-
-    const interval = setInterval(() => {
-
+    intervalRef.current = setInterval(() => {
       setAnimating(true);
 
       setTimeout(() => {
-        setTime(t => t - 1);
-        setAnimating(false);
-      }, 200);
+        setTime((t) => {
+          if (t <= 1) {
+            clearInterval(intervalRef.current);
+            return 0;
+          }
+          return t - 1;
+        });
 
+        setAnimating(false);
+      }, 120);
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => clearInterval(intervalRef.current);
+  }, [running]);
 
-  }, [time]);
+  function addTime(v) {
+    setTime((t) => t + v);
+  }
 
-  const addTime = (value) => setTime(t => t + value);
+  function subtractTime(v) {
+    setTime((t) => {
+      const next = Math.max(0, t - v);
+      if (next === 0) {
+        clearInterval(intervalRef.current);
+      }
+      return next;
+    });
+  }
 
-  const subtractTime = (value) =>
-    setTime(t => Math.max(0, t - value));
-
-  return { time, animating, addTime, subtractTime };
-
+  return {
+    time,
+    animating,
+    addTime,
+    subtractTime,
+  };
 }
